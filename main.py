@@ -2,6 +2,8 @@ import httpx
 import time
 import os
 import re
+from flask import Flask        # 👈 নতুন যোগ করুন
+from threading import Thread   # 👈 নতুন যোগ করুন
 
 # ==========================================
 # 🧠 ১. পার্মানেন্ট ফাইল-মেমোরি সিস্টেম
@@ -24,6 +26,24 @@ print(f"[*] মেমোরি লোড হয়েছে: ইতিমধ্য�
 # ==========================================
 # ⚙️ ২. টেলিগ্রাম কনফিগারেশন (ক্লিন ও শর্ট ডিজাইন)
 # ==========================================
+
+# ==========================================
+# 🌐 ফ্লাস্ক সার্ভার (রেন্ডার ফ্রি রাখার জন্য)
+# ==========================================
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Domain Hunter Bot is Alive!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
 TELEGRAM_BOT_TOKEN = "8887958648:AAFxD9U3XzmR4G-dKKNBbfuRRaWqS9ORyb4"
 TELEGRAM_CHAT_IDS = [
           "8039516027",
@@ -179,7 +199,9 @@ sources_list = [
 # 🚀 ৪. উন্নত ফিল্ড ভ্যালিডেশন ও হান্টিং লুপ
 # ==========================================
 print("[🚀] উন্নত ফিল্ড ভ্যালিডেশন ইঞ্জিন চালু হয়েছে...\n", flush=True)
-
+if __name__ == '__main__':
+    keep_alive()  # 👈 ফ্লাস্ক সার্ভার এখানে চালু হবে
+    print("[🚀] ফ্লাস্ক ও হান্টিং ইঞ্জিন ব্যাকগ্রাউন্ডে চালু হয়েছে...\n", flush=True)
 cat_index = 0
 attempt = 0
 
