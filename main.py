@@ -2,8 +2,25 @@ import httpx
 import time
 import os
 import re
-from flask import Flask        # 👈 নতুন যোগ করুন
-from threading import Thread   # 👈 নতুন যোগ করুন
+from flask import Flask
+from threading import Thread
+
+# ==========================================
+# 🌐 ফ্লাস্ক সার্ভার (রেন্ডার ফ্রি রাখার জন্য)
+# ==========================================
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Domain Hunter Bot is Alive!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run_flask)
+    t.daemon = True
+    t.start()
 
 # ==========================================
 # 🧠 ১. পার্মানেন্ট ফাইল-মেমোরি সিস্টেম
@@ -24,39 +41,16 @@ seen_domains = load_seen_domains()
 print(f"[*] মেমোরি লোড হয়েছে: ইতিমধ্যে {len(seen_domains)} টি ডোমেইন মেমোরিতে সংরক্ষিত আছে।\n", flush=True)
 
 # ==========================================
-# ⚙️ ২. টেলিগ্রাম কনফিগারেশন (ক্লিন ও শর্ট ডিজাইন)
+# ⚙️ ২. টেলিগ্রাম কনফিগারেশন
 # ==========================================
-
-# ==========================================
-# 🌐 ফ্লাস্ক সার্ভার (রেন্ডার ফ্রি রাখার জন্য)
-# ==========================================
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Domain Hunter Bot is Alive!"
-
-def run_flask():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-
 TELEGRAM_BOT_TOKEN = "8887958648:AAFxD9U3XzmR4G-dKKNBbfuRRaWqS9ORyb4"
 TELEGRAM_CHAT_IDS = [
-          "8039516027",
-          "7269487985",
-          "6245614648",
-          "1852918448",
-          "7709102746",
-          "5632044849",
-          "1954309535",
-          "6878096460",
+          "8039516027", "7269487985", "6245614648", 
+          "1852918448", "7709102746", "5632044849", 
+          "1954309535", "6878096460",
 ]
+
 def send_telegram_alert(url, source, phone_det, signup_det):
-    # নতুন ডিজাইন অনুযায়ী মেসেজ ফরম্যাট (Markdown সিনট্যাক্স মেনেই লেখা হয়েছে)
     msg = (
         f"🗽 *New Website!*\n\n"
         f"🌐 *URL:* `{url}`\n\n"
@@ -72,16 +66,12 @@ def send_telegram_alert(url, source, phone_det, signup_det):
             if res.status_code == 200:
                 print(f"[📲] নোটিফিকেশন পাঠানো হয়েছে (Chat ID: {chat_id})", flush=True)
             else:
-                # যদি টেলিগ্রাম কোনো কারণে রিজেক্ট করে, তার কারণ প্রিন্ট করবে
                 print(f"[!] টেলিগ্রাম এরর ({chat_id}): {res.text}", flush=True)
         except Exception as e:
             print(f"[!] টেলিগ্রাম কানেকশন এরর ({chat_id}): {e}", flush=True)
 
-
-
-
 # ==========================================
-# 🌐 ৩. সুনির্দিষ্ট ২০টি ক্যাটাগরি ও ১০টি সোর্স
+# 🌐 ৩. সুনির্দিষ্ট ২০টি ক্যাটাগরি ও ২০টি সোর্স
 # ==========================================
 categories = [
     "wallet", "pay", "banking", "exchange", "crypto", 
@@ -111,7 +101,7 @@ def get_base_domains(data):
             domains.append(domain)
     return process_and_filter_domains(domains)
 
-# ১০টি সোর্স এন্ডপয়েন্ট
+# --- মূল ২০টি সোর্স এন্ডপয়েন্ট ---
 def source_1(kw):
     try:
         res = httpx.get(f"https://crt.sh/?q={kw}&output=json", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
@@ -181,6 +171,99 @@ def source_10(kw):
         return get_base_domains(res.json()) if res.status_code == 200 else []
     except: return []
 
+def source_11(kw):
+    try:
+        res = httpx.get(f"https://api.certspotter.com/v1/issuances?domain={kw}&include_subdomains=1&expand=dns_names", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        if res.status_code == 200:
+            domains = []
+            for item in res.json():
+                for dns in item.get('dns_names', []):
+                    domains.append(dns)
+            return process_and_filter_domains(domains)
+    except: pass
+    return []
+
+def source_12(kw):
+    try:
+        res = httpx.get(f"https://dns.bufferover.cc/dns?q={kw}", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        if res.status_code == 200:
+            data = res.json()
+            raw = []
+            for entry in data.get('FDNS_A', []):
+                parts = entry.split(',')
+                if len(parts) > 1:
+                    raw.append(parts[1])
+            for entry in data.get('RDNS', []):
+                parts = entry.split(',')
+                if len(parts) > 1:
+                    raw.append(parts[1])
+            return process_and_filter_domains(raw)
+    except: pass
+    return []
+
+def source_13(kw):
+    try:
+        res = httpx.get(f"https://api.threatminer.org/v2/domain.php?q={kw}&rt=5", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        if res.status_code == 200:
+            raw = res.json().get('results', [])
+            return process_and_filter_domains(raw)
+    except: pass
+    return []
+
+def source_14(kw):
+    try:
+        res = httpx.get(f"https://api.hackertarget.com/hostsearch/?q={kw}", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        if res.status_code == 200 and "API count exceeded" not in res.text:
+            domains = []
+            for line in res.text.split('\n'):
+                if ',' in line:
+                    domains.append(line.split(',')[0])
+            return process_and_filter_domains(domains)
+    except: pass
+    return []
+
+def source_15(kw):
+    try:
+        res = httpx.get(f"https://crt.sh/?q=%.{kw}&output=json", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        return get_base_domains(res.json()) if res.status_code == 200 else []
+    except: return []
+
+def source_16(kw):
+    try:
+        res = httpx.get(f"https://crt.sh/?q=login.{kw}&output=json", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        return get_base_domains(res.json()) if res.status_code == 200 else []
+    except: return []
+
+def source_17(kw):
+    try:
+        res = httpx.get(f"https://urlscan.io/api/v1/search/?q=host:{kw}", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        if res.status_code == 200:
+            raw = [item.get('page', {}).get('domain', '') for item in res.json().get('results', [])]
+            return process_and_filter_domains(raw)
+    except: pass
+    return []
+
+def source_18(kw):
+    try:
+        res = httpx.get(f"https://urlscan.io/api/v1/search/?q=task.domain:{kw}", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        if res.status_code == 200:
+            raw = [item.get('page', {}).get('domain', '') for item in res.json().get('results', [])]
+            return process_and_filter_domains(raw)
+    except: pass
+    return []
+
+def source_19(kw):
+    try:
+        res = httpx.get(f"https://crt.sh/?q=%.{kw}&exclude=expired&output=json", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        return get_base_domains(res.json()) if res.status_code == 200 else []
+    except: return []
+
+def source_20(kw):
+    try:
+        res = httpx.get(f"https://crt.sh/?q=app.{kw}.*&output=json", timeout=8, headers={'User-Agent': 'Mozilla/5.0'})
+        return get_base_domains(res.json()) if res.status_code == 200 else []
+    except: return []
+
 sources_list = [
     ("crt.sh-Standard", source_1),
     ("crt.sh-Wildcard-Com", source_2),
@@ -191,17 +274,28 @@ sources_list = [
     ("crt.sh-Match-Like", source_7),
     ("crt.sh-Org-Pattern", source_8),
     ("urlscan-Page-Title", source_9),
-    ("crt.sh-Subdomain-Variant", source_10)
+    ("crt.sh-Subdomain-Variant", source_10),
+    ("CertSpotter-API", source_11),
+    ("BufferOver-DNS", source_12),
+    ("ThreatMiner-API", source_13),
+    ("HackerTarget-HostSearch", source_14),
+    ("crt.sh-Reverse-Query", source_15),
+    ("crt.sh-Specific-Login", source_16),
+    ("urlscan-Host-Search", source_17),
+    ("urlscan-Task-Domain", source_18),
+    ("crt.sh-Wildcard-Exclude", source_19),
+    ("crt.sh-App-Prefix", source_20)
 ]
 
+# ==========================================
+# 🚀 ৪. স্মার্ট ব্যাকঅফ ও হান্টিং লুপ
+# ==========================================
+print("[🚀] ২০টি সোর্স সমেত স্মার্ট ভ্যালিডেশন ইঞ্জিন চালু হয়েছে...\n", flush=True)
 
-# ==========================================
-# 🚀 ৪. উন্নত ফিল্ড ভ্যালিডেশন ও হান্টিং লুপ
-# ==========================================
-print("[🚀] উন্নত ফিল্ড ভ্যালিডেশন ইঞ্জিন চালু হয়েছে...\n", flush=True)
 if __name__ == '__main__':
-    keep_alive()  # 👈 ফ্লাস্ক সার্ভার এখানে চালু হবে
+    keep_alive()  
     print("[🚀] ফ্লাস্ক ও হান্টিং ইঞ্জিন ব্যাকগ্রাউন্ডে চালু হয়েছে...\n", flush=True)
+
 cat_index = 0
 attempt = 0
 
@@ -221,9 +315,11 @@ while True:
                 domains = res_domains
                 used_source = source_name
                 break
-        except:
-            continue
-        time.sleep(0.3)
+        except Exception as e:
+            print(f"   [!] সোর্স এরর: {e}", flush=True)
+        
+        # রেট-লিমিট ও ব্লক এড়াতে নিরাপদ বিরতি
+        time.sleep(1)
         
     if domains:
         print(f"[✔] ইউনিক ডোমেইন পাওয়া গেছে ({len(domains)} টি) [{used_source}]। স্ট্রাকচারাল ফর্ম চেক হচ্ছে...", flush=True)
@@ -237,10 +333,7 @@ while True:
                 if live_res.status_code == 200:
                     html_content = live_res.text.lower()
                     
-                    # সুনির্দিষ্ট স্ট্রাকচারাল ভ্যালিডেশন (ফুটার টেক্সট ইগ্নোর করার জন্য)
                     has_form = bool(re.search(r'<form\b[^>]*>', html_content))
-                    
-                    # ফর্মের ভেতরের ইনপুট ট্যাগগুলো চেক করা
                     inputs = re.findall(r'<input\b[^>]*>', html_content, re.IGNORECASE)
                     phone_detected = False
                     signup_detected = False
@@ -253,7 +346,6 @@ while True:
                         if any(k in inp_l for k in ['password', 'register', 'signup', 'create']):
                             signup_detected = True
                     
-                    # ফর্মের ভেতরের টেক্সট চেক
                     forms = re.findall(r'<form\b[^>]*>(.*?)</form>', html_content, re.IGNORECASE | re.DOTALL)
                     form_text = " ".join(forms).lower()
                     has_signup_text = any(k in form_text for k in ['sign up', 'register', 'create account', 'signup', 'sign-up'])
@@ -262,23 +354,20 @@ while True:
                     is_valid_signup = has_form and (signup_detected or has_signup_text)
                     
                     if is_valid_phone or is_valid_signup:
-                        
                         print(f"\n🎉 [🎯 আসল টার্গেট সাইট ভেরিফাইড!]", flush=True)
-
                         print(f"👉 URL: {target_url}", flush=True)
                         print(f"👉 Source: {used_source}", flush=True)
                         
                         send_telegram_alert(target_url, used_source, is_valid_phone, is_valid_signup)
-                        
-                       
                     else:
                         print(f"   [x] স্কিপড (আসল ফর্ম বা ফোন ইনপুট নেই): {domain}", flush=True)
                 else:
                     print(f"   [x] ডেড সাইট: {domain} ({live_res.status_code})", flush=True)
+                
+                time.sleep(0.5)
             except:
                 continue
     else:
         print(f"[-] এই ক্যাটাগরিতে ডেটা আসেনি, পরবর্তী ক্যাটাগরিতে যাচ্ছি...\n", flush=True)
        
-        
-    time.sleep(1)
+    time.sleep(3)
